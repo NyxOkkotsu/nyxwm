@@ -17,6 +17,11 @@ Client *sel = NULL;
 int current_tag = 0;
 int running = 1;
 
+// Status canvas dan posisi kamera diisolasi per-workspace (tag 1-4)
+int canvas_mode[4] = {0, 0, 0, 0};
+int cam_x[4] = {0, 0, 0, 0};
+int cam_y[4] = {0, 0, 0, 0};
+
 void drawbar(void) {
     XWindowAttributes wa;
     XGetWindowAttributes(dpy, bar_win, &wa);
@@ -108,7 +113,12 @@ void drawbar(void) {
     strftime(time_str, sizeof(time_str), "%a, %d %b • %H:%M", tm_info);
 
     char status_text[256];
-    snprintf(status_text, sizeof(status_text), " nyxwm-1.0  |    %d%%  |    %s  |    %s ", cpu_usage, ram_str, time_str);
+    // Menambahkan indikator visual [CANVAS] jika mode canvas aktif di workspace saat ini
+    if (canvas_mode[current_tag]) {
+        snprintf(status_text, sizeof(status_text), " [CANVAS] nyxwm-1.0  |    %d%%  |    %s  |    %s ", cpu_usage, ram_str, time_str);
+    } else {
+        snprintf(status_text, sizeof(status_text), " nyxwm-1.0  |    %d%%  |    %s  |    %s ", cpu_usage, ram_str, time_str);
+    }
 
     XSetForeground(dpy, gc, 0xf5c2e7);
     int tw = font ? XTextWidth(font, status_text, strlen(status_text)) : (int)(strlen(status_text) * 6);
@@ -131,7 +141,7 @@ void tile(void) {
                 XWindowAttributes wa;
                 XGetWindowAttributes(dpy, c->win, &wa);
                 if (wa.x >= 0) {
-                    long coords[2] = {wa.x, wa.y};
+                    long coords[2] = {wa.x + cam_x[current_tag], wa.y + cam_y[current_tag]};
                     Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
                     XChangeProperty(dpy, c->win, prop, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)coords, 2);
                 }
@@ -157,7 +167,7 @@ void tile(void) {
                 }
                 XFree(prop_to_get);
             }
-            XMoveWindow(dpy, c->win, fx, fy);
+            XMoveWindow(dpy, c->win, fx - cam_x[current_tag], fy - cam_y[current_tag]);
         }
     }
 
@@ -181,9 +191,9 @@ void tile(void) {
     for (c = clients; c; c = c->next) {
         if (c->tag != current_tag || c->isfloating) continue;
         if (i == 0) {
-            XMoveResizeWindow(dpy, c->win, mx, my, mw, mh);
+            XMoveResizeWindow(dpy, c->win, mx - cam_x[current_tag], my - cam_y[current_tag], mw, mh);
         } else {
-            XMoveResizeWindow(dpy, c->win, sx, sy + ((i - 1) * (sh_stack + INNER_GAP)), sw_stack, sh_stack);
+            XMoveResizeWindow(dpy, c->win, sx - cam_x[current_tag], sy + ((i - 1) * (sh_stack + INNER_GAP)) - cam_y[current_tag], sw_stack, sh_stack);
         }
         i++;
     }
@@ -224,9 +234,9 @@ void fn_toggle_float(const char **arg) {
     if (!sel) return;
     sel->isfloating = !sel->isfloating;
     if (sel->isfloating) {
-        int fx = sw / 4;
-        int fy = sh / 4;
-        XMoveResizeWindow(dpy, sel->win, fx, fy, sw / 2, sh / 2);
+        int fx = sw / 4 + cam_x[current_tag];
+        int fy = sh / 4 + cam_y[current_tag];
+        XMoveResizeWindow(dpy, sel->win, fx - cam_x[current_tag], fy - cam_y[current_tag], sw / 2, sh / 2);
         
         long coords[2] = {fx, fy};
         Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
@@ -248,6 +258,17 @@ void fn_set_tag(const char **arg) {
             break;
         }
     }
+    drawbar();
+}
+
+void fn_toggle_canvas(const char **arg) {
+    (void)arg;
+    canvas_mode[current_tag] = !canvas_mode[current_tag];
+    if (!canvas_mode[current_tag]) {
+        cam_x[current_tag] = 0;
+        cam_y[current_tag] = 0;
+    }
+    tile();
     drawbar();
 }
 
@@ -351,82 +372,111 @@ void handle_event(XEvent *ev) {
         }
         case ButtonPress: {
             XButtonEvent *be = &ev->xbutton;
-            Client *c;
-            for (c = clients; c; c = c->next) {
-                if (c->win == be->window) {
-                    if (sel != c) {
-                        sel = c;
-                        XSetInputFocus(dpy, sel->win, RevertToParent, CurrentTime);
-                        XRaiseWindow(dpy, sel->win);
-                        drawbar();
-                    }
-                    
-                    if (c->isfloating && (be->state & Mod4Mask)) {
-                        XEvent mouse_ev;
-                        int start_x = be->x_root;
-                        int start_y = be->y_root;
-                        XWindowAttributes wa;
-                        XGetWindowAttributes(dpy, c->win, &wa);
-                        
-                        if (be->button == Button1) {
-                            int start_win_x = wa.x;
-                            int start_win_y = wa.y;
-                            
-                            if (XGrabPointer(dpy, root, False, PointerMotionMask | ButtonReleaseMask,
-                                             GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess) {
-                                int dragging = 1;
-                                while (dragging) {
-                                    XNextEvent(dpy, &mouse_ev);
-                                    if (mouse_ev.type == MotionNotify) {
-                                        int dx = mouse_ev.xmotion.x_root - start_x;
-                                        int dy = mouse_ev.xmotion.y_root - start_y;
-                                        int nx = start_win_x + dx;
-                                        int ny = start_win_y + dy;
-                                        
-                                        XMoveWindow(dpy, c->win, nx, ny);
-                                        
-                                        long coords[2] = {nx, ny};
-                                        Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
-                                        XChangeProperty(dpy, sel->win, prop, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)coords, 2);
-                                    } else if (mouse_ev.type == ButtonRelease) {
-                                        dragging = 0;
-                                    } else {
-                                        handle_event(&mouse_ev);
-                                    }
-                                }
-                                XUngrabPointer(dpy, CurrentTime);
-                            }
-                        }
-                        else if (be->button == Button3) {
-                            int start_win_w = wa.width;
-                            int start_win_h = wa.height;
-                            
-                            if (XGrabPointer(dpy, root, False, PointerMotionMask | ButtonReleaseMask,
-                                             GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess) {
-                                int dragging = 1;
-                                while (dragging) {
-                                    XNextEvent(dpy, &mouse_ev);
-                                    if (mouse_ev.type == MotionNotify) {
-                                        int dx = mouse_ev.xmotion.x_root - start_x;
-                                        int dy = mouse_ev.xmotion.y_root - start_y;
-                                        int nw = start_win_w + dx;
-                                        int nh = start_win_h + dy;
-                                        
-                                        if (nw < 60) nw = 60;
-                                        if (nh < 60) nh = 60;
-                                        
-                                        XResizeWindow(dpy, c->win, nw, nh);
-                                    } else if (mouse_ev.type == ButtonRelease) {
-                                        dragging = 0;
-                                    } else {
-                                        handle_event(&mouse_ev);
-                                    }
-                                }
-                                XUngrabPointer(dpy, CurrentTime);
-                            }
-                        }
-                    }
+            Window win = be->window;
+            Client *c = NULL;
+            
+            for (Client *t = clients; t; t = t->next) {
+                if (t->win == win) {
+                    c = t;
                     break;
+                }
+            }
+
+            if (c && sel != c) {
+                sel = c;
+                XSetInputFocus(dpy, sel->win, RevertToParent, CurrentTime);
+                XRaiseWindow(dpy, sel->win);
+                drawbar();
+            }
+            
+            // LOGIK BARU 1: Win + Shift + Drag Klik Kiri -> Panning Canvas (Bisa di klik di mana aja)
+            if ((be->state & MODKEY) && (be->state & ShiftMask) && be->button == Button1) {
+                if (canvas_mode[current_tag]) {
+                    XEvent mouse_ev;
+                    int start_x = be->x_root;
+                    int start_y = be->y_root;
+                    int start_cam_x = cam_x[current_tag];
+                    int start_cam_y = cam_y[current_tag];
+                    
+                    if (XGrabPointer(dpy, root, False, PointerMotionMask | ButtonReleaseMask,
+                                     GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess) {
+                        while (1) {
+                            XNextEvent(dpy, &mouse_ev);
+                            if (mouse_ev.type == MotionNotify) {
+                                int dx = mouse_ev.xmotion.x_root - start_x;
+                                int dy = mouse_ev.xmotion.y_root - start_y;
+                                cam_x[current_tag] = start_cam_x - dx;
+                                cam_y[current_tag] = start_cam_y - dy;
+                                tile();
+                            } else if (mouse_ev.type == ButtonRelease && mouse_ev.xbutton.button == Button1) {
+                                break;
+                            }
+                        }
+                        XUngrabPointer(dpy, CurrentTime);
+                    }
+                }
+            }
+            // LOGIK BARU 2: Win + Drag Klik Kiri (Tanpa Shift) -> Drag Window Floating saja
+            else if ((be->state & MODKEY) && !(be->state & ShiftMask) && be->button == Button1 && c && c->isfloating) {
+                XEvent mouse_ev;
+                int start_x = be->x_root;
+                int start_y = be->y_root;
+                XWindowAttributes wa;
+                XGetWindowAttributes(dpy, c->win, &wa);
+                int start_win_x = wa.x;
+                int start_win_y = wa.y;
+                
+                if (XGrabPointer(dpy, root, False, PointerMotionMask | ButtonReleaseMask,
+                                 GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess) {
+                    while (1) {
+                        XNextEvent(dpy, &mouse_ev);
+                        if (mouse_ev.type == MotionNotify) {
+                            int dx = mouse_ev.xmotion.x_root - start_x;
+                            int dy = mouse_ev.xmotion.y_root - start_y;
+                            int nx = start_win_x + dx;
+                            int ny = start_win_y + dy;
+                            
+                            XMoveWindow(dpy, c->win, nx, ny);
+                            
+                            long coords[2] = {nx + cam_x[current_tag], ny + cam_y[current_tag]};
+                            Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
+                            XChangeProperty(dpy, c->win, prop, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)coords, 2);
+                        } else if (mouse_ev.type == ButtonRelease && mouse_ev.xbutton.button == Button1) {
+                            break;
+                        }
+                    }
+                    XUngrabPointer(dpy, CurrentTime);
+                }
+            }
+            
+            else if ((be->state & MODKEY) && be->button == Button3 && c && c->isfloating) {
+                XEvent mouse_ev;
+                int start_x = be->x_root;
+                int start_y = be->y_root;
+                XWindowAttributes wa;
+                XGetWindowAttributes(dpy, c->win, &wa);
+                int start_win_w = wa.width;
+                int start_win_h = wa.height;
+                
+                if (XGrabPointer(dpy, root, False, PointerMotionMask | ButtonReleaseMask,
+                                 GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess) {
+                    while (1) {
+                        XNextEvent(dpy, &mouse_ev);
+                        if (mouse_ev.type == MotionNotify) {
+                            int dx = mouse_ev.xmotion.x_root - start_x;
+                            int dy = mouse_ev.xmotion.y_root - start_y;
+                            int nw = start_win_w + dx;
+                            int nh = start_win_h + dy;
+                            
+                            if (nw < 60) nw = 60;
+                            if (nh < 60) nh = 60;
+                            
+                            XResizeWindow(dpy, c->win, nw, nh);
+                        } else if (mouse_ev.type == ButtonRelease && mouse_ev.xbutton.button == Button3) {
+                            break;
+                        }
+                    }
+                    XUngrabPointer(dpy, CurrentTime);
                 }
             }
             XAllowEvents(dpy, ReplayPointer, be->time);
