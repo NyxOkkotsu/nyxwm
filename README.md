@@ -46,6 +46,8 @@ No bullshit. Just speed.
 * No garbage collector
 * No unnecessary dependencies
 
+---
+
 ### 📊 Built-in Status Bar
 ### Core Elements:
 
