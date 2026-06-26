@@ -57,6 +57,7 @@ void fn_focus(const char **arg);
 void fn_toggle_float(const char **arg);
 void fn_set_tag(const char **arg);
 void fn_quit(const char **arg);
+void fn_toggle_canvas(const char **arg);
 
 static Key keys[] __attribute__((unused)) = {
     { MODKEY, XK_Return, fn_spawn, termcmd },
@@ -74,6 +75,7 @@ static Key keys[] __attribute__((unused)) = {
     { 0, XF86XK_AudioMute, fn_spawn, mutevol },
     { 0, XF86XK_MonBrightnessUp, fn_spawn, upbright },
     { 0, XF86XK_MonBrightnessDown, fn_spawn, downbright },
+    { MODKEY,               XK_g,      fn_toggle_canvas, NULL },
 };
 static int keys_count __attribute__((unused)) = sizeof(keys) / sizeof(keys[0]);
 
