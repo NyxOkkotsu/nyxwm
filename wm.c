@@ -17,7 +17,6 @@ Client *sel = NULL;
 int current_tag = 0;
 int running = 1;
 
-// Status canvas dan posisi kamera diisolasi per-workspace (tag 1-4)
 int canvas_mode[4] = {0, 0, 0, 0};
 int cam_x[4] = {0, 0, 0, 0};
 int cam_y[4] = {0, 0, 0, 0};
@@ -64,8 +63,17 @@ void drawbar(void) {
     if (sel) {
         char *name = NULL;
         if (XFetchName(dpy, sel->win, &name) && name) {
+            XWindowAttributes win_wa;
+            XGetWindowAttributes(dpy, sel->win, &win_wa);
+            
+            int abs_x = win_wa.x + cam_x[current_tag];
+            int abs_y = win_wa.y + cam_y[current_tag];
+            
+            char title_buf[512];
+            snprintf(title_buf, sizeof(title_buf), "%s [%d, %d]", name, abs_x, abs_y);
+            
             XSetForeground(dpy, gc, 0xcdd6f4);
-            XDrawString(dpy, bar_win, gc, 140, text_y, name, strlen(name));
+            XDrawString(dpy, bar_win, gc, 140, text_y, title_buf, strlen(title_buf));
             XFree(name);
         }
     }
@@ -113,7 +121,6 @@ void drawbar(void) {
     strftime(time_str, sizeof(time_str), "%a, %d %b • %H:%M", tm_info);
 
     char status_text[256];
-    // Menambahkan indikator visual [CANVAS] jika mode canvas aktif di workspace saat ini
     if (canvas_mode[current_tag]) {
         snprintf(status_text, sizeof(status_text), " [CANVAS] nyxwm-1.0  |    %d%%  |    %s  |    %s ", cpu_usage, ram_str, time_str);
     } else {
@@ -264,9 +271,28 @@ void fn_set_tag(const char **arg) {
 void fn_toggle_canvas(const char **arg) {
     (void)arg;
     canvas_mode[current_tag] = !canvas_mode[current_tag];
-    if (!canvas_mode[current_tag]) {
+    
+    if (canvas_mode[current_tag]) {
+        for (Client *c = clients; c; c = c->next) {
+            if (c->tag == current_tag) {
+                c->isfloating = 1;
+                
+                XWindowAttributes wa;
+                XGetWindowAttributes(dpy, c->win, &wa);
+                
+                long coords[2] = {wa.x + cam_x[current_tag], wa.y + cam_y[current_tag]};
+                Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
+                XChangeProperty(dpy, c->win, prop, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)coords, 2);
+            }
+        }
+    } else {
         cam_x[current_tag] = 0;
         cam_y[current_tag] = 0;
+        for (Client *c = clients; c; c = c->next) {
+            if (c->tag == current_tag) {
+                c->isfloating = 0;
+            }
+        }
     }
     tile();
     drawbar();
@@ -281,7 +307,7 @@ void manage(Window w) {
     if (w == bar_win) return;
     Client *c = malloc(sizeof(Client));
     c->win = w;
-    c->isfloating = 0;
+    c->isfloating = canvas_mode[current_tag];
     c->tag = current_tag;
     c->next = clients;
     clients = c;
@@ -389,7 +415,6 @@ void handle_event(XEvent *ev) {
                 drawbar();
             }
             
-            // LOGIK BARU 1: Win + Shift + Drag Klik Kiri -> Panning Canvas (Bisa di klik di mana aja)
             if ((be->state & MODKEY) && (be->state & ShiftMask) && be->button == Button1) {
                 if (canvas_mode[current_tag]) {
                     XEvent mouse_ev;
@@ -408,6 +433,7 @@ void handle_event(XEvent *ev) {
                                 cam_x[current_tag] = start_cam_x - dx;
                                 cam_y[current_tag] = start_cam_y - dy;
                                 tile();
+                                drawbar();
                             } else if (mouse_ev.type == ButtonRelease && mouse_ev.xbutton.button == Button1) {
                                 break;
                             }
@@ -416,7 +442,6 @@ void handle_event(XEvent *ev) {
                     }
                 }
             }
-            // LOGIK BARU 2: Win + Drag Klik Kiri (Tanpa Shift) -> Drag Window Floating saja
             else if ((be->state & MODKEY) && !(be->state & ShiftMask) && be->button == Button1 && c && c->isfloating) {
                 XEvent mouse_ev;
                 int start_x = be->x_root;
@@ -441,6 +466,7 @@ void handle_event(XEvent *ev) {
                             long coords[2] = {nx + cam_x[current_tag], ny + cam_y[current_tag]};
                             Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
                             XChangeProperty(dpy, c->win, prop, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)coords, 2);
+                            drawbar();
                         } else if (mouse_ev.type == ButtonRelease && mouse_ev.xbutton.button == Button1) {
                             break;
                         }
@@ -448,7 +474,6 @@ void handle_event(XEvent *ev) {
                     XUngrabPointer(dpy, CurrentTime);
                 }
             }
-            
             else if ((be->state & MODKEY) && be->button == Button3 && c && c->isfloating) {
                 XEvent mouse_ev;
                 int start_x = be->x_root;
