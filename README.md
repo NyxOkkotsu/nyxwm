@@ -46,6 +46,21 @@ No bullshit. Just speed.
 * No garbage collector
 * No unnecessary dependencies
 
+### 📊 Built-in Status Bar
+# Core Elements:
+
+
+* **Workspaces (Left):**
+  Displays active tags/workspaces with clear visual indication of the current focus.
+
+* **Active Window Title (Center/Adjacent):**
+  Shows the currently focused window name for quick context switching.
+
+* **System Identifier (Right):**
+  Displays a static signature:
+  `nyxwm-1.0`
+
+
 ---
 
 ### 🚀 Advanced Shell Engine (`fn_spawn`)
@@ -147,3 +162,4 @@ MIT License.
 
 Do whatever you want with it.
 Break it if you can.
+
