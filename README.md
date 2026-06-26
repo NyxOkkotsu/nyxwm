@@ -47,7 +47,7 @@ No bullshit. Just speed.
 * No unnecessary dependencies
 
 ### 📊 Built-in Status Bar
-# Core Elements:
+### Core Elements:
 
 
 * **Workspaces (Left):**
@@ -60,6 +60,9 @@ No bullshit. Just speed.
   Displays a static signature:
   `nyxwm-1.0`
 
+### 📺 Unlimited canvas panning desktop
+* **Panning Desktop:**
+  Activate the unlimited canvas panning desktop with pressing WIN+G and panning with MOD+SHIFT+LEFRDRAGMOUSE
 
 ---
 
