@@ -128,10 +128,7 @@ make && sudo make install
 ```bash
 #!/bin/sh
 
-[ -z "$XDG_RUNTIME_DIR" ] && export XDG_RUNTIME_DIR=/run/user/$(id -u)
-
-pamixer --unmute
-pamixer --set-volume 50
+eval $(dbus-launch --sh-syntax)
 
 exec nyxwm
 ```
