@@ -1,6 +1,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/XInput2.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,6 +12,8 @@ extern Display *dpy;
 extern Window root;
 extern Window bar_win;
 extern int sw, sh;
+extern int xi_opcode;
+extern XFontStruct *bar_font;
 
 Client *clients = NULL;
 Client *sel = NULL;
@@ -30,15 +33,14 @@ void drawbar(void) {
     XGCValues gcv;
     GC gc = XCreateGC(dpy, bar_win, 0, &gcv);
     
-    XFontStruct *font = XLoadQueryFont(dpy, "fixed");
-    if (font) {
-        XSetFont(dpy, gc, font->fid);
+    if (bar_font) {
+        XSetFont(dpy, gc, bar_font->fid);
     }
     
     XSetForeground(dpy, gc, 0x11111b);
     XFillRectangle(dpy, bar_win, gc, 0, 0, bar_w, bar_h);
     
-    int text_y = font ? (bar_h + font->ascent - font->descent) / 2 : (bar_h / 2) + 4;
+    int text_y = bar_font ? (bar_h + bar_font->ascent - bar_font->descent) / 2 : (bar_h / 2) + 4;
     
     for (int i = 0; i < 4; i++) {
         char label[2] = { '1' + i, '\0' };
@@ -55,7 +57,7 @@ void drawbar(void) {
             XSetForeground(dpy, gc, 0xa6adc8);
         }
         
-        int tw = font ? XTextWidth(font, label, 1) : 6;
+        int tw = bar_font ? XTextWidth(bar_font, label, 1) : 6;
         int tx = box_x + (box_w - tw) / 2;
         XDrawString(dpy, bar_win, gc, tx, text_y, label, 1);
     }
@@ -78,63 +80,28 @@ void drawbar(void) {
         }
     }
     
-    static unsigned long long p_user, p_nice, p_system, p_idle, p_iowait, p_irq, p_softirq;
-    unsigned long long user, nice, system, idle, iowait, irq, softirq;
-    int cpu_usage = 0;
+    char cpu_str[16], ram_str[32], time_str[64], status_text[256];
+    extern void get_cpu(char*, size_t);
+    extern void get_ram(char*, size_t);
     
-    FILE *f_cpu = fopen("/proc/stat", "r");
-    if (f_cpu) {
-        char buf[256];
-        if (fgets(buf, sizeof(buf), f_cpu)) {
-            sscanf(buf, "cpu %llu %llu %llu %llu %llu %llu %llu", &user, &nice, &system, &idle, &iowait, &irq, &softirq);
-            unsigned long long p_act = p_user + p_nice + p_system + p_irq + p_softirq;
-            unsigned long long p_tot = p_act + p_idle + p_iowait;
-            unsigned long long act = user + nice + system + irq + softirq;
-            unsigned long long tot = act + idle + iowait;
-            if ((tot - p_tot) > 0) {
-                cpu_usage = (int)(((act - p_act) * 100) / (tot - p_tot));
-            }
-            p_user = user; p_nice = nice; p_system = system; p_idle = idle;
-            p_iowait = iowait; p_irq = irq; p_softirq = softirq;
-        }
-        fclose(f_cpu);
-    }
-
-    unsigned long long total_mem = 0, avail_mem = 0;
-    FILE *f_mem = fopen("/proc/meminfo", "r");
-    if (f_mem) {
-        char line[256];
-        while (fgets(line, sizeof(line), f_mem)) {
-            if (strncmp(line, "MemTotal:", 9) == 0) sscanf(line, "MemTotal: %llu", &total_mem);
-            else if (strncmp(line, "MemAvailable:", 13) == 0) sscanf(line, "MemAvailable: %llu", &avail_mem);
-        }
-        fclose(f_mem);
-    }
-    double used_gb = (double)(total_mem - avail_mem) / 1024.0 / 1024.0;
-    double total_gb = (double)total_mem / 1024.0 / 1024.0;
-    char ram_str[32];
-    snprintf(ram_str, sizeof(ram_str), "%.1fG/%.1fG", used_gb, total_gb);
+    get_cpu(cpu_str, sizeof(cpu_str));
+    get_ram(ram_str, sizeof(ram_str));
 
     time_t t = time(NULL);
     struct tm *tm_info = localtime(&t);
-    char time_str[64];
     strftime(time_str, sizeof(time_str), "%a, %d %b • %H:%M", tm_info);
 
-    char status_text[256];
     if (canvas_mode[current_tag]) {
-        snprintf(status_text, sizeof(status_text), " [CANVAS] nyxwm-1.0  |    %d%%  |    %s  |    %s ", cpu_usage, ram_str, time_str);
+        snprintf(status_text, sizeof(status_text), " [CANVAS] nyxwm-1.0  |    %s  |    %s  |    %s ", cpu_str, ram_str, time_str);
     } else {
-        snprintf(status_text, sizeof(status_text), " nyxwm-1.0  |    %d%%  |    %s  |    %s ", cpu_usage, ram_str, time_str);
+        snprintf(status_text, sizeof(status_text), " nyxwm-1.0  |    %s  |    %s  |    %s ", cpu_str, ram_str, time_str);
     }
 
     XSetForeground(dpy, gc, 0xf5c2e7);
-    int tw = font ? XTextWidth(font, status_text, strlen(status_text)) : (int)(strlen(status_text) * 6);
+    int tw = bar_font ? XTextWidth(bar_font, status_text, strlen(status_text)) : (int)(strlen(status_text) * 6);
     int tx = bar_w - tw - 10;
     XDrawString(dpy, bar_win, gc, tx, text_y, status_text, strlen(status_text));
     
-    if (font) {
-        XFreeFont(dpy, font);
-    }
     XFreeGC(dpy, gc);
 }
 
@@ -317,6 +284,8 @@ void manage(Window w) {
     
     XGrabButton(dpy, Button1, AnyModifier, w, False, ButtonPressMask, 
                 GrabModeSync, GrabModeAsync, None, None);
+    XGrabButton(dpy, Button2, AnyModifier, w, False, ButtonPressMask, 
+                GrabModeSync, GrabModeAsync, None, None);
     XGrabButton(dpy, Button3, AnyModifier, w, False, ButtonPressMask, 
                 GrabModeSync, GrabModeAsync, None, None);
 
@@ -354,6 +323,67 @@ void unmanage(Window w) {
 
 void handle_event(XEvent *ev) {
     switch (ev->type) {
+        case GenericEvent: {
+            if (ev->xcookie.extension == xi_opcode) {
+                if (XGetEventData(dpy, &ev->xcookie)) {
+                    int evtype = ev->xcookie.evtype;
+                    
+                    if (evtype == XI_GestureSwipeBegin || 
+                        evtype == XI_GestureSwipeUpdate || 
+                        evtype == XI_GestureSwipeEnd) {
+                        
+                        XIGestureSwipeEvent *gev = (XIGestureSwipeEvent *)ev->xcookie.data;
+                        
+                        if (gev->detail == 3 && canvas_mode[current_tag]) {
+                            if (evtype == XI_GestureSwipeUpdate) {
+                                cam_x[current_tag] -= (int)gev->delta_x;
+                                cam_y[current_tag] -= (int)gev->delta_y;
+                                
+                                tile();
+                                drawbar();
+                            }
+                        }
+                        
+                        if (gev->detail == 4) {
+                            Client *c = NULL;
+                            if (gev->child != None) {
+                                for (Client *t = clients; t; t = t->next) {
+                                    if (t->win == gev->child) {
+                                        c = t;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!c) c = sel;
+                            
+                            if (c && c->isfloating) {
+                                if (evtype == XI_GestureSwipeBegin) {
+                                    sel = c;
+                                    XSetInputFocus(dpy, sel->win, RevertToParent, CurrentTime);
+                                    XRaiseWindow(dpy, sel->win);
+                                    drawbar();
+                                } else if (evtype == XI_GestureSwipeUpdate) {
+                                    XWindowAttributes wa;
+                                    XGetWindowAttributes(dpy, c->win, &wa);
+                                    int nx = wa.x + (int)gev->delta_x;
+                                    int ny = wa.y + (int)gev->delta_y;
+                                    
+                                    XMoveWindow(dpy, c->win, nx, ny);
+                                    
+                                    long coords[2] = {nx + cam_x[current_tag], ny + cam_y[current_tag]};
+                                    Atom prop = XInternAtom(dpy, "_NYX_FLOAT_POS", False);
+                                    XChangeProperty(dpy, c->win, prop, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)coords, 2);
+                                    
+                                    drawbar();
+                                }
+                            }
+                        }
+                    }
+                    XFreeEventData(dpy, &ev->xcookie);
+                }
+            }
+            break;
+        }
         case Expose:
             if (ev->xexpose.window == bar_win && ev->xexpose.count == 0) {
                 drawbar();
@@ -413,6 +443,35 @@ void handle_event(XEvent *ev) {
                 XSetInputFocus(dpy, sel->win, RevertToParent, CurrentTime);
                 XRaiseWindow(dpy, sel->win);
                 drawbar();
+            }
+
+            static Time last_button2_time = 0;
+            if (be->button == Button2) {
+                if (be->time - last_button2_time < 300) {
+                    const char *kitty_cmd[] = {"kitty", NULL};
+                    fn_spawn(kitty_cmd);
+                    XAllowEvents(dpy, AsyncPointer, be->time);
+                    last_button2_time = 0;
+                    break;
+                } else {
+                    last_button2_time = be->time;
+                    XAllowEvents(dpy, ReplayPointer, be->time);
+                    break;
+                }
+            }
+
+            static Time last_button3_time = 0;
+            if (be->button == Button3 && !(be->state & MODKEY)) {
+                if (be->time - last_button3_time < 300) {
+                    fn_kill(NULL);
+                    XAllowEvents(dpy, AsyncPointer, be->time);
+                    last_button3_time = 0;
+                    break;
+                } else {
+                    last_button3_time = be->time;
+                    XAllowEvents(dpy, ReplayPointer, be->time);
+                    break;
+                }
             }
             
             if ((be->state & MODKEY) && (be->state & ShiftMask) && be->button == Button1) {

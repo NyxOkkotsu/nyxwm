@@ -3,6 +3,7 @@
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/XInput2.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,6 +15,8 @@ Window root;
 Window bar_win;
 Window wm_check_win;
 int sw, sh;
+int xi_opcode;
+XFontStruct *bar_font = NULL;
 
 extern int running;
 extern void handle_event(XEvent *ev);
@@ -22,7 +25,7 @@ extern void drawbar(void);
 static int xerror(Display *d, XErrorEvent *ee) {
     (void)d;
     if (ee->error_code == BadAccess && ee->resourceid == root) {
-        fprintf(stderr, "nyxwm: Gagal berjalan. WM lain sepertinya sedang aktif.\n");
+        fprintf(stderr, "nyxwm: Failed to start. Another window manager is already running.\n");
         exit(1);
     }
     return 0;
@@ -32,7 +35,7 @@ void setup(void) {
     XSetErrorHandler(xerror);
     dpy = XOpenDisplay(NULL);
     if (!dpy) {
-        fprintf(stderr, "nyxwm: Gagal membuka X Display.\n");
+        fprintf(stderr, "nyxwm: Failed to open X Display.\n");
         exit(1);
     }
     
@@ -50,6 +53,34 @@ void setup(void) {
 
     Cursor cursor = XCreateFontCursor(dpy, XC_left_ptr);
     XDefineCursor(dpy, root, cursor);
+
+    int query_event, query_error;
+    if (!XQueryExtension(dpy, "XInputExtension", &xi_opcode, &query_event, &query_error)) {
+        fprintf(stderr, "nyxwm: XInput Extension is not supported on this system!\n");
+    } else {
+        int major = 2, minor = 4;
+        if (XIQueryVersion(dpy, &major, &minor) == BadRequest) {
+            fprintf(stderr, "nyxwm: XInput 2.4 driver not supported! Failed to load gestures.\n");
+        } else {
+            unsigned char mask_bytes[XIMaskLen(XI_GestureSwipeEnd)] = {0};
+            XIEventMask mask;
+            
+            mask.deviceid = XIAllMasterDevices;
+            mask.mask_len = sizeof(mask_bytes);
+            mask.mask = mask_bytes;
+            
+            XISetMask(mask.mask, XI_GestureSwipeBegin);
+            XISetMask(mask.mask, XI_GestureSwipeUpdate);
+            XISetMask(mask.mask, XI_GestureSwipeEnd);
+            
+            XISelectEvents(dpy, root, &mask, 1);
+        }
+    }
+
+    bar_font = XLoadQueryFont(dpy, FONT_NAME);
+    if (!bar_font) {
+        fprintf(stderr, "nyxwm: Failed to load font '%s'\n", FONT_NAME);
+    }
 
     wm_check_win = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
     Atom net_wm_name = XInternAtom(dpy, "_NET_WM_NAME", False);
@@ -81,6 +112,9 @@ void cleanup(void) {
     XDestroyWindow(dpy, bar_win);
     XDestroyWindow(dpy, wm_check_win);
     XUngrabKey(dpy, AnyKey, AnyModifier, root);
+    if (bar_font) {
+        XFreeFont(dpy, bar_font);
+    }
     XCloseDisplay(dpy);
 }
 

@@ -38,6 +38,7 @@ typedef struct {
 
 static const char* termcmd[]  = { "kitty", NULL };
 static const char* menucmd[]  = { "rofi", "-show", "drun", NULL };
+static const char* wallcmd[]  = { "/bin/sh", "-c", "~/rofi-wallpaper.sh", NULL };
 static const char* tag1[] __attribute__((unused)) = { "0", NULL };
 static const char* tag2[] __attribute__((unused)) = { "1", NULL };
 static const char* tag3[] __attribute__((unused)) = { "2", NULL };
@@ -45,11 +46,11 @@ static const char* tag4[] __attribute__((unused)) = { "3", NULL };
 
 static const char* tags[] __attribute__((unused)) = { "1", "2", "3", "4" };
 
-static const char *upvol[]      = { "/usr/bin/pamixer", "-i", "5", NULL };
-static const char *downvol[]    = { "/usr/bin/pamixer", "-d", "5", NULL };
-static const char *mutevol[]    = { "/usr/bin/pamixer", "-t", NULL };
-static const char *upbright[]   = { "/usr/bin/brightnessctl", "set", "+10%", NULL };
-static const char *downbright[] = { "/usr/bin/brightnessctl", "set", "10%-", NULL };
+static const char *upvol[]      = { "/bin/sh", "-c", "~/volume.sh i", NULL };
+static const char *downvol[]    = { "/bin/sh", "-c", "~/volume.sh d", NULL };
+static const char *mutevol[]    = { "/bin/sh", "-c", "~/volume.sh t", NULL };
+static const char *upbright[]   = { "/bin/sh", "-c", "~/brightness.sh +10%", NULL };
+static const char *downbright[] = { "/bin/sh", "-c", "~/brightness.sh 10%-", NULL };
 
 void fn_spawn(const char **arg);
 void fn_kill(const char **arg);
@@ -62,6 +63,7 @@ void fn_toggle_canvas(const char **arg);
 static Key keys[] __attribute__((unused)) = {
     { MODKEY, XK_Return, fn_spawn, termcmd },
     { MODKEY, XK_p,      fn_spawn, menucmd },
+    { MODKEY, XK_w,      fn_spawn, wallcmd },
     { MODKEY, XK_c,      fn_kill,  NULL },
     { MODKEY, XK_j,      fn_focus, NULL },
     { MODKEY, XK_f,      fn_toggle_float, NULL },

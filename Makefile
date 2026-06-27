@@ -1,8 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-LDFLAGS = -lX11
+LDFLAGS = -lX11 -lXi
 
-# Hapus bar.c dari sini
 SRC = main.c wm.c util.c
 OBJ = $(SRC:.c=.o)
 
