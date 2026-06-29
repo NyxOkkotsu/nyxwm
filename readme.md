@@ -21,28 +21,23 @@ Nyx recommends using Picom for an enhanced experience.
 
 Please feel free to provide suggestions or report any issues you encounter.
 
----
-
 ## ⚡ Features
 
-### 🧠 Blazingly Fast 
+### Blazingly Fast 
 
-* Pure C, zero abstraction
-* Near 0ms startup
-* Microscopic RAM usage
+* Nyxwm is written in pure C, therefore there is zero abstraction
+* Near 0ms startup, provided you have a sufficiently supporting hardware.
+* Minimal RAM usage. 
 * Stable under heavy workloads (gaming, compiling)
 
----
-
-### 🧩 Tidy Tiling & Grid Symmetries
+### Tidy Tiling & Grid Symmetries
 
 * Clean, deterministic layouts
 * No overlapping chaos
 * Every pixel is used efficiently
 
----
 
-### ⚙️ Suckless Philosophy
+### Suckless Philosophy
 
 * Single `config.h`
 * Compile-time configuration
@@ -50,9 +45,7 @@ Please feel free to provide suggestions or report any issues you encounter.
 * No garbage collector
 * No unnecessary dependencies
 
----
-
-### 📊 Built-in Status Bar
+### Built-in Status Bar
 Core Elements:
 
 * **Workspaces (Left):**
@@ -65,34 +58,30 @@ Core Elements:
   Displays a static signature:
   `nyxwm-1.1`
 
-### 📺 Unlimited canvas panning desktop
+### Unlimited canvas panning desktop
 * **Panning Desktop:**
   Activate the unlimited canvas panning desktop with pressing WIN+G and panning with MOD+SHIFT+LEFRDRAGMOUSE
 
-### 📸 Built-In Screenshots Tools
+### Built-In Screenshots Tools
 * Just press win+shift+s to screenshots area and the image will be saved on ~/Pictures/Screenshots
 
-### 🖵 3 Tilling Layout
+### 3 Tilling Layout
 * You Can Change Tilling Layout By Pressing Win+L, This Wm Has A 3 tilling Layout That You Can Try
 
-### 📲 ALT+TAB To Change Window Focus
+### ALT+TAB To Change Window Focus
 * Change Window Focus With ALT+TAB
 
-### 🗺️ Window Location Indicator At Canvas Mode (MAPS)
+### Window Location Indicator At Canvas Mode (MAPS)
 * Automatically Spawn A Minimaps Every Change Into Canvas Mode
 
----
-
-### 🚀 Advanced Shell Engine (`fn_spawn`)
+### Advanced Shell Engine (`fn_spawn`)
 
 * Non-blocking execution
 * Direct `/bin/sh` piping
 * Fast command dispatch
 * Script + system control ready
 
----
-
-### 🎛️ Native Hardware Controls
+### Native Hardware Controls
 
 Pre-mapped keys for:
 
@@ -100,36 +89,79 @@ Pre-mapped keys for:
 * Brightness → `brightnessctl`
 * Uses XF86 multimedia keys
 
----
-
-### 🔊 PipeWire / WirePlumber Ready
+### PipeWire / WirePlumber Ready
 
 * Modern Linux audio stack compatible
 * No DE required
 * Clean integration
 
----
-
-## 🛠️ Dependencies
+## Dependencies
 
 ```bash
 sudo pacman -S libx11 pamixer brightnessctl base-devel
 ```
 
----
 
-## ⚙️ Build & Install
+## Build & Install
 
 ```bash
-git clone https://github.com/yourusername/nyxwm.git
+git clone https://github.com/NyxOkkotsu/nyxwm.git
 cd nyxwm
-make clean && make
-sudo make install
+make build 
+makepkg -si
 ```
 
----
 
-## 🔧 Configuration — `config.h`
+**Make commands**
+
+I have added several useful make build instructions.
+
+1) Build the project.
+
+```bash
+make build 
+# or 
+make all
+```
+
+2) Run the main binary. 
+
+This one builds the binary and then runs it. Here the build directory is not deleted and persists. 
+
+```bash 
+make run
+```
+
+3) Test the program 
+
+This one will build the binary and then run it, then finally clean it. No build directory persists. 
+
+```bash 
+make test 
+```
+
+4) Clean the project structure 
+
+This will remove the build directory and clean the object files. 
+
+```bash 
+make clean
+```
+
+
+**Arch `makepkg`**
+
+For installing the binary system wide, if you are in an arch based repo, you need to use the `makepkg` to build and install the binary to standard paths. Run the command as given below the install it. 
+
+```bash 
+makepkg -si 
+```
+
+>[!IMPORTANT]
+> This project CTemplate is only for linux based systems and the PKGBUILD is optional (have it if you are an arch based user), else delete it. This makefile structure has no compactness with windows or mac based or any other non linux OS. 
+
+
+## Configuration — `config.h`
 
 ```c
 #include <X11/XF86keysym.h>
@@ -151,12 +183,10 @@ static const Key keys[] = {
 Recompile after changes:
 
 ```bash
-make && sudo make install
+make build && makepkg -si
 ```
 
----
-
-## 🏁 Launch
+## Launch
 
 `~/.xinitrc`:
 
@@ -174,9 +204,7 @@ Start:
 startx
 ```
 
----
-
-## 📜 License
+## License
 
 MIT License.
 
