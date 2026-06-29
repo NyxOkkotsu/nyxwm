@@ -1,3 +1,4 @@
+// not yet ready to be installed along with nyxwm as a whole. 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <string.h>
