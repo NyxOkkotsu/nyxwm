@@ -15,13 +15,17 @@
 
 A minimal, high-performance tiling window manager for X11 written in pure C.
 
-No bullshit. Just speed.
+Nyx grew tired of tedious window managers that merely showcased different layouts, as well as "unlimited canvas" WMs that—while cool—consumed excessive resources. Consequently, Nyx set out to create a window manager that is lightweight, fast, and efficient without sacrificing functionality; it offers three layouts and supports two desktop modes—tiling and canvas—simultaneously.
+
+Nyx recommends using Picom for an enhanced experience.
+
+Please feel free to provide suggestions or report any issues you encounter.
 
 ---
 
 ## ⚡ Features
 
-### 🧠 Blazingly Fast Bare-Metal Execution
+### 🧠 Blazingly Fast 
 
 * Pure C, zero abstraction
 * Near 0ms startup
