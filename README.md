@@ -68,6 +68,18 @@ No bullshit. Just speed.
 * **Panning Desktop:**
   Activate the unlimited canvas panning desktop with pressing WIN+G and panning with MOD+SHIFT+LEFRDRAGMOUSE
 
+### 📸 Built-In Screenshots Tools
+* Just press win+shift+s to screenshots area and the image will be saved on ~/Pictures/Screenshots
+
+### 🖵 3 Tilling Layout
+* You Can Change Tilling Layout By Pressing Win+L, This Wm Has A 3 tilling Layout That You Can Try
+
+### 📲 ALT+TAB To Change Window Focus
+* Change Window Focus With ALT+TAB
+
+### 🗺️ Window Location Indicator At Canvas Mode (MAPS)
+* Automatically Spawn A Minimaps Every Change Into Canvas Mode
+
 ---
 
 ### 🚀 Advanced Shell Engine (`fn_spawn`)
