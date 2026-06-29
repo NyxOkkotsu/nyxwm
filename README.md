@@ -49,8 +49,7 @@ No bullshit. Just speed.
 ---
 
 ### 📊 Built-in Status Bar
-### Core Elements:
-
+Core Elements:
 
 * **Workspaces (Left):**
   Displays active tags/workspaces with clear visual indication of the current focus.
@@ -60,9 +59,7 @@ No bullshit. Just speed.
 
 * **System Identifier (Right):**
   Displays a static signature:
-  `nyxwm-1.0`
-
----
+  `nyxwm-1.1`
 
 ### 📺 Unlimited canvas panning desktop
 * **Panning Desktop:**
