@@ -1,3 +1,5 @@
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
@@ -6,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "config.h"
 
 extern Display *dpy;
@@ -19,12 +23,61 @@ Client *clients = NULL;
 Client *sel = NULL;
 int current_tag = 0;
 int running = 1;
+int current_layout = 0;
 
 int canvas_mode[4] = {0, 0, 0, 0};
 int cam_x[4] = {0, 0, 0, 0};
 int cam_y[4] = {0, 0, 0, 0};
+Window map_win = None;
+
+void draw_minimap(void) {
+    if (!map_win || !canvas_mode[current_tag]) return;
+    XClearWindow(dpy, map_win);
+    GC gc = XCreateGC(dpy, map_win, 0, NULL);
+    
+    int vcx = cam_x[current_tag] + sw / 2;
+    int vcy = cam_y[current_tag] + sh / 2;
+    double sx = 200.0 / (8.0 * sw);
+    double sy = 150.0 / (8.0 * sh);
+    
+    int v_x = 100 + (int)((cam_x[current_tag] - vcx) * sx);
+    int v_y = 75 + (int)((cam_y[current_tag] - vcy) * sy);
+    int v_w = (int)(sw * sx);
+    int v_h = (int)(sh * sy);
+    
+    XSetForeground(dpy, gc, 0x585b70);
+    XDrawRectangle(dpy, map_win, gc, v_x, v_y, v_w, v_h);
+    
+    for (Client *c = clients; c; c = c->next) {
+        if (c->tag == current_tag) {
+            XWindowAttributes wa;
+            XGetWindowAttributes(dpy, c->win, &wa);
+            int ax = wa.x + cam_x[current_tag];
+            int ay = wa.y + cam_y[current_tag];
+            
+            int cx = 100 + (int)((ax - vcx) * sx);
+            int cy = 75 + (int)((ay - vcy) * sy);
+            int cw = (int)(wa.width * sx);
+            int ch = (int)(wa.height * sy);
+            
+            if (cw < 2) cw = 2;
+            if (ch < 2) ch = 2;
+            
+            if (c == sel) {
+                XSetForeground(dpy, gc, 0x89b4fa);
+                XFillRectangle(dpy, map_win, gc, cx, cy, cw, ch);
+            } else {
+                XSetForeground(dpy, gc, 0xf5c2e7);
+                XDrawRectangle(dpy, map_win, gc, cx, cy, cw, ch);
+            }
+        }
+    }
+    XFreeGC(dpy, gc);
+}
 
 void drawbar(void) {
+    if (!SHOW_BAR) return;
+
     XWindowAttributes wa;
     XGetWindowAttributes(dpy, bar_win, &wa);
     int bar_h = wa.height;
@@ -94,7 +147,7 @@ void drawbar(void) {
     if (canvas_mode[current_tag]) {
         snprintf(status_text, sizeof(status_text), " [CANVAS] nyxwm-1.0  |    %s  |    %s  |    %s ", cpu_str, ram_str, time_str);
     } else {
-        snprintf(status_text, sizeof(status_text), " nyxwm-1.0  |    %s  |    %s  |    %s ", cpu_str, ram_str, time_str);
+        snprintf(status_text, sizeof(status_text), " nyxwm-1.1  |    %s  |    %s  |    %s ", cpu_str, ram_str, time_str);
     }
 
     XSetForeground(dpy, gc, 0xf5c2e7);
@@ -103,6 +156,10 @@ void drawbar(void) {
     XDrawString(dpy, bar_win, gc, tx, text_y, status_text, strlen(status_text));
     
     XFreeGC(dpy, gc);
+    
+    if (canvas_mode[current_tag]) {
+        draw_minimap();
+    }
 }
 
 void tile(void) {
@@ -151,25 +208,52 @@ void tile(void) {
 
     if (n == 0) return;
 
-    int mw = (n > 1) ? (sw - (OUTER_GAP * 2) - INNER_GAP) * MASTER_SIZE : sw - (OUTER_GAP * 2);
-    int mh = sh - BAR_HEIGHT - (OUTER_GAP * 2) - (BAR_PADDING_Y * 2);
+    int current_bar_h = SHOW_BAR ? BAR_HEIGHT : 0;
+    int current_bar_pad = SHOW_BAR ? (BAR_PADDING_Y * 2) : 0;
+
     int mx = OUTER_GAP;
-    int my = BAR_HEIGHT + OUTER_GAP + (BAR_PADDING_Y * 2);
+    int my = current_bar_h + OUTER_GAP + current_bar_pad;
+    int mh = sh - current_bar_h - (OUTER_GAP * 2) - current_bar_pad;
 
-    int sx = mx + mw + INNER_GAP;
-    int sy = my;
-    int sw_stack = sw - mw - (OUTER_GAP * 2) - INNER_GAP;
-    int sh_stack = (n > 1) ? (mh - (INNER_GAP * (n - 2))) / (n - 1) : 0;
+    if (current_layout == 0) {
+        int mw = (n > 1) ? (sw - (OUTER_GAP * 2) - INNER_GAP) * MASTER_SIZE : sw - (OUTER_GAP * 2);
+        int sx = mx + mw + INNER_GAP;
+        int sy = my;
+        int sw_stack = sw - mw - (OUTER_GAP * 2) - INNER_GAP;
+        int sh_stack = (n > 1) ? (mh - (INNER_GAP * (n - 2))) / (n - 1) : 0;
 
-    int i = 0;
-    for (c = clients; c; c = c->next) {
-        if (c->tag != current_tag || c->isfloating) continue;
-        if (i == 0) {
-            XMoveResizeWindow(dpy, c->win, mx - cam_x[current_tag], my - cam_y[current_tag], mw, mh);
-        } else {
-            XMoveResizeWindow(dpy, c->win, sx - cam_x[current_tag], sy + ((i - 1) * (sh_stack + INNER_GAP)) - cam_y[current_tag], sw_stack, sh_stack);
+        int i = 0;
+        for (c = clients; c; c = c->next) {
+            if (c->tag != current_tag || c->isfloating) continue;
+            if (i == 0) {
+                XMoveResizeWindow(dpy, c->win, mx - cam_x[current_tag], my - cam_y[current_tag], mw, mh);
+            } else {
+                XMoveResizeWindow(dpy, c->win, sx - cam_x[current_tag], sy + ((i - 1) * (sh_stack + INNER_GAP)) - cam_y[current_tag], sw_stack, sh_stack);
+            }
+            i++;
         }
-        i++;
+    } else if (current_layout == 1) {
+        int mw = sw - (OUTER_GAP * 2);
+        for (c = clients; c; c = c->next) {
+            if (c->tag != current_tag || c->isfloating) continue;
+            XMoveResizeWindow(dpy, c->win, mx - cam_x[current_tag], my - cam_y[current_tag], mw, mh);
+        }
+    } else if (current_layout == 2) {
+        int cols = 1;
+        while (cols * cols < n) cols++;
+        int rows = (n + cols - 1) / cols;
+        int ww = (sw - (OUTER_GAP * 2) - ((cols - 1) * INNER_GAP)) / cols;
+        int wh = (mh - ((rows - 1) * INNER_GAP)) / rows;
+        int i = 0;
+        for (c = clients; c; c = c->next) {
+            if (c->tag != current_tag || c->isfloating) continue;
+            int col = i % cols;
+            int row = i / cols;
+            int gx = mx + col * (ww + INNER_GAP);
+            int gy = my + row * (wh + INNER_GAP);
+            XMoveResizeWindow(dpy, c->win, gx - cam_x[current_tag], gy - cam_y[current_tag], ww, wh);
+            i++;
+        }
     }
 }
 
@@ -235,11 +319,33 @@ void fn_set_tag(const char **arg) {
     drawbar();
 }
 
+void fn_alt_tab(const char **arg) {
+    fn_focus(arg);
+}
+
+void fn_next_layout(const char **arg) {
+    (void)arg;
+    current_layout = (current_layout + 1) % 3;
+    tile();
+    drawbar();
+}
+
 void fn_toggle_canvas(const char **arg) {
     (void)arg;
     canvas_mode[current_tag] = !canvas_mode[current_tag];
     
     if (canvas_mode[current_tag]) {
+        if (!map_win) {
+            int mw = 200;
+            int mh = 150;
+            int mx = sw - mw - OUTER_GAP;
+            int my = BAR_HEIGHT + (BAR_PADDING_Y * 2) + OUTER_GAP;
+            map_win = XCreateSimpleWindow(dpy, root, mx, my, mw, mh, 1, 0x89b4fa, 0x11111b);
+            Atom opacity_atom = XInternAtom(dpy, "_NET_WM_WINDOW_OPACITY", False);
+            unsigned long opacity = (unsigned long)(0.75 * 4294967295.0);
+            XChangeProperty(dpy, map_win, opacity_atom, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&opacity, 1);
+            XMapWindow(dpy, map_win);
+        }
         for (Client *c = clients; c; c = c->next) {
             if (c->tag == current_tag) {
                 c->isfloating = 1;
@@ -253,6 +359,11 @@ void fn_toggle_canvas(const char **arg) {
             }
         }
     } else {
+        if (map_win) {
+            XUnmapWindow(dpy, map_win);
+            XDestroyWindow(dpy, map_win);
+            map_win = None;
+        }
         cam_x[current_tag] = 0;
         cam_y[current_tag] = 0;
         for (Client *c = clients; c; c = c->next) {
@@ -263,6 +374,86 @@ void fn_toggle_canvas(const char **arg) {
     }
     tile();
     drawbar();
+}
+
+void fn_screenshot(const char **arg) {
+    (void)arg;
+    if (XGrabPointer(dpy, root, False, ButtonPressMask | ButtonReleaseMask | PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None, CurrentTime) != GrabSuccess) return;
+    
+    XEvent ev;
+    int start_x = 0, start_y = 0, end_x = 0, end_y = 0;
+    int drawing = 0;
+    
+    GC gc = XCreateGC(dpy, root, 0, NULL);
+    XSetFunction(dpy, gc, GXxor);
+    XSetForeground(dpy, gc, 0xffffff);
+    XSetSubwindowMode(dpy, gc, IncludeInferiors);
+    
+    int running_ss = 1;
+    while (running_ss) {
+        XNextEvent(dpy, &ev);
+        if (ev.type == ButtonPress && ev.xbutton.button == Button1) {
+            start_x = ev.xbutton.x_root;
+            start_y = ev.xbutton.y_root;
+            end_x = start_x;
+            end_y = start_y;
+            drawing = 1;
+        } else if (ev.type == MotionNotify && drawing) {
+            XDrawRectangle(dpy, root, gc, start_x < end_x ? start_x : end_x, start_y < end_y ? start_y : end_y, abs(end_x - start_x), abs(end_y - start_y));
+            end_x = ev.xmotion.x_root;
+            end_y = ev.xmotion.y_root;
+            XDrawRectangle(dpy, root, gc, start_x < end_x ? start_x : end_x, start_y < end_y ? start_y : end_y, abs(end_x - start_x), abs(end_y - start_y));
+        } else if (ev.type == ButtonRelease && ev.xbutton.button == Button1) {
+            if (drawing) {
+                XDrawRectangle(dpy, root, gc, start_x < end_x ? start_x : end_x, start_y < end_y ? start_y : end_y, abs(end_x - start_x), abs(end_y - start_y));
+            }
+            running_ss = 0;
+        }
+    }
+    
+    XFreeGC(dpy, gc);
+    XUngrabPointer(dpy, CurrentTime);
+    
+    int rx = start_x < end_x ? start_x : end_x;
+    int ry = start_y < end_y ? start_y : end_y;
+    int rw = abs(end_x - start_x);
+    int rh = abs(end_y - start_y);
+    
+    if (rw > 5 && rh > 5) {
+        XImage *img = XGetImage(dpy, root, rx, ry, rw, rh, AllPlanes, ZPixmap);
+        if (img) {
+            char *home = getenv("HOME");
+            if (home) {
+                char path[512];
+                snprintf(path, sizeof(path), "%s/Pictures", home);
+                mkdir(path, 0755);
+                snprintf(path, sizeof(path), "%s/Pictures/Screenshots", home);
+                mkdir(path, 0755);
+                
+                time_t t = time(NULL);
+                struct tm *tm = localtime(&t);
+                char filepath[1024];
+                snprintf(filepath, sizeof(filepath), "%s/%04d-%02d-%02d_%02d-%02d-%02d.png", path,
+                         tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+                         tm->tm_hour, tm->tm_min, tm->tm_sec);
+                
+                unsigned char *rgb_data = malloc(rw * rh * 3);
+                if (rgb_data) {
+                    for (int y = 0; y < rh; y++) {
+                        for (int x = 0; x < rw; x++) {
+                            unsigned long pixel = XGetPixel(img, x, y);
+                            rgb_data[(y * rw + x) * 3 + 0] = (pixel & 0xff0000) >> 16;
+                            rgb_data[(y * rw + x) * 3 + 1] = (pixel & 0x00ff00) >> 8;
+                            rgb_data[(y * rw + x) * 3 + 2] = (pixel & 0x0000ff);
+                        }
+                    }
+                    stbi_write_png(filepath, rw, rh, 3, rgb_data, rw * 3);
+                    free(rgb_data);
+                }
+            }
+            XDestroyImage(img);
+        }
+    }
 }
 
 void fn_quit(const char **arg) {

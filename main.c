@@ -102,7 +102,10 @@ void setup(void) {
     XStoreName(dpy, bar_win, "nyxbar");
     
     XSelectInput(dpy, bar_win, ExposureMask);
-    XMapWindow(dpy, bar_win);
+    
+    if (SHOW_BAR) {
+        XMapWindow(dpy, bar_win);
+    }
     
     XSync(dpy, False);
 }

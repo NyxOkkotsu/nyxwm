@@ -5,6 +5,8 @@
 #include <X11/keysym.h>
 #include <X11/XF86keysym.h>
 
+#define SHOW_BAR 1
+
 #define BAR_HEIGHT 24
 #define BAR_PADDING_X 12
 #define BAR_PADDING_Y 6
@@ -39,10 +41,10 @@ typedef struct {
 static const char* termcmd[]  = { "kitty", NULL };
 static const char* menucmd[]  = { "rofi", "-show", "drun", NULL };
 static const char* wallcmd[]  = { "/bin/sh", "-c", "~/rofi-wallpaper.sh", NULL };
-static const char* tag1[] __attribute__((unused)) = { "0", NULL };
-static const char* tag2[] __attribute__((unused)) = { "1", NULL };
-static const char* tag3[] __attribute__((unused)) = { "2", NULL };
-static const char* tag4[] __attribute__((unused)) = { "3", NULL };
+static const char* tag1[] = { "0", NULL };
+static const char* tag2[] = { "1", NULL };
+static const char* tag3[] = { "2", NULL };
+static const char* tag4[] = { "3", NULL };
 
 static const char* tags[] __attribute__((unused)) = { "1", "2", "3", "4" };
 
@@ -59,8 +61,11 @@ void fn_toggle_float(const char **arg);
 void fn_set_tag(const char **arg);
 void fn_quit(const char **arg);
 void fn_toggle_canvas(const char **arg);
+void fn_screenshot(const char **arg);
+void fn_alt_tab(const char **arg);
+void fn_next_layout(const char **arg);
 
-static Key keys[] __attribute__((unused)) = {
+static Key keys[] = {
     { MODKEY, XK_Return, fn_spawn, termcmd },
     { MODKEY, XK_p,      fn_spawn, menucmd },
     { MODKEY, XK_w,      fn_spawn, wallcmd },
@@ -78,7 +83,10 @@ static Key keys[] __attribute__((unused)) = {
     { 0, XF86XK_MonBrightnessUp, fn_spawn, upbright },
     { 0, XF86XK_MonBrightnessDown, fn_spawn, downbright },
     { MODKEY,               XK_g,      fn_toggle_canvas, NULL },
+    { MODKEY | ShiftMask,   XK_s,      fn_screenshot,    NULL },
+    { Mod1Mask,             XK_Tab,    fn_alt_tab,       NULL },
+    { MODKEY,               XK_l,      fn_next_layout,   NULL },
 };
-static int keys_count __attribute__((unused)) = sizeof(keys) / sizeof(keys[0]);
+static int keys_count = sizeof(keys) / sizeof(keys[0]);
 
 #endif

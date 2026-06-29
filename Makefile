@@ -6,18 +6,18 @@ SRC = main.c wm.c util.c
 OBJ = $(SRC:.c=.o)
 
 nyxwm: $(OBJ)
-        $(CC) $(CFLAGS) -o nyxwm $(OBJ) $(LDFLAGS)
-        @echo "=== Build Success ==="
-        @echo "Restarting nyxwm..."
-        @pkill nyxwm || true
+	$(CC) $(CFLAGS) -o nyxwm $(OBJ) $(LDFLAGS)
+	@echo "=== Build Success ==="
+	@echo "Restarting nyxwm..."
+	@pkill nyxwm || true
 
 %.o: %.c
-        $(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-        rm -f *.o nyxwm
+	rm -f *.o nyxwm
 
 install: nyxwm
-        install -Dm755 nyxwm /usr/local/bin/nyxwm
+	install -Dm755 nyxwm /usr/local/bin/nyxwm
 
 .PHONY: clean install
