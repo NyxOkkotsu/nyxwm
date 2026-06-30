@@ -21,7 +21,9 @@ Nyx recommends using Picom for an enhanced experience.
 
 Please feel free to provide suggestions or report any issues you encounter.
 
-## ⚡ Features
+## Features
+
+Take a look into the features of Nyxwm.
 
 ### Blazingly Fast 
 
@@ -36,14 +38,13 @@ Please feel free to provide suggestions or report any issues you encounter.
 * No overlapping chaos
 * Every pixel is used efficiently
 
-
 ### Suckless Philosophy
 
-* Single `config.h`
+* You are going to change just : `config.h`
 * Compile-time configuration
-* No runtime parsing
+* There are no runtime parsing
 * No garbage collector
-* No unnecessary dependencies
+* Or no unnecessary dependencies except `gcc` and other deps mentioned.
 
 ### Built-in Status Bar
 Core Elements:
@@ -95,14 +96,22 @@ Pre-mapped keys for:
 * No DE required
 * Clean integration
 
-## Dependencies
+## Installation :
+
+### Dependencies
+
+Before installing `nyxwm`, you gotta install the dependencies. If you are in an arch based system, use the following command. 
+
 
 ```bash
 sudo pacman -S libx11 pamixer brightnessctl base-devel
 ```
 
 
-## Build & Install
+### Build & Install
+
+After you have successfully finished installing the dependencies, you need to clone the repo, build the binary, and install it via `makepkg -si`, which would make the **binary manageable with pacman.**
+
 
 ```bash
 git clone https://github.com/NyxOkkotsu/nyxwm.git
@@ -111,6 +120,9 @@ make build
 makepkg -si
 ```
 
+### Testing 
+
+If you are willing to contribute to this project, here are a list of `make` commands that would make your workflow feel faster.
 
 **Make commands**
 
@@ -161,32 +173,136 @@ makepkg -si
 > This project CTemplate is only for linux based systems and the PKGBUILD is optional (have it if you are an arch based user), else delete it. This makefile structure has no compactness with windows or mac based or any other non linux OS. 
 
 
-## Configuration — `config.h`
+### Uninstalling nyxwm
 
-```c
-#include <X11/XF86keysym.h>
+Case you need to uninstall the window manager, as stated earlier, it can be easily done via `pacman` **if you install it via `makepkg`**. 
 
-static const Key keys[] = {
-
-	/* Audio */
-	{ 0, XF86XK_AudioRaiseVolume, fn_spawn, (const char*[]){"/bin/sh","-c","pamixer -i 5",NULL} },
-	{ 0, XF86XK_AudioLowerVolume, fn_spawn, (const char*[]){"/bin/sh","-c","pamixer -d 5",NULL} },
-	{ 0, XF86XK_AudioMute,        fn_spawn, (const char*[]){"/bin/sh","-c","pamixer -t",NULL} },
-
-	/* Brightness */
-	{ 0, XF86XK_MonBrightnessUp,   fn_spawn, (const char*[]){"/bin/sh","-c","brightnessctl set +10%",NULL} },
-	{ 0, XF86XK_MonBrightnessDown, fn_spawn, (const char*[]){"/bin/sh","-c","brightnessctl set 10%-",NULL} },
-
-};
+```bash
+sudo pacman -Rns nyxwm
 ```
 
-Recompile after changes:
+
+## Configuring your system 
+
+In order to configure the system, you need to edit the `config.h` that is located in `include/` directory. Here is the default `config.h`.
+
+The configuration comes with three parts. 
+
+### WM Properties
+
+By editing these configuration, you will be able to configure whether or not to show the bar, define the bar height, padding, configure the window manager's gaps, background and foreground of the bar, font name (currently it is fixed), update mod key and more. 
+
+```c
+#define SHOW_BAR 1
+
+#define BAR_HEIGHT 24
+#define BAR_PADDING_X 12
+#define BAR_PADDING_Y 6
+#define INNER_GAP 10
+#define OUTER_GAP 14
+
+#define BG_COLOR "#1e1e2e"
+#define FG_COLOR "#cdd6f4"
+
+#define FONT_NAME "fixed"
+
+#define REFRESH_INTERVAL 1
+#define MASTER_SIZE 0.60
+#define MODKEY Mod4Mask
+#define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
+```
+
+### WM Variables and Commands
+
+Each keybinding is mapped to execution of a command. You can speciy the commands as a set of string arrays (type : `*command[]`, or `**command`). 
+
+```c
+static const char* termcmd[]  = { "kitty", NULL };
+static const char* menucmd[]  = { "rofi", "-show", "drun", NULL };
+static const char* wallcmd[]  = { "/bin/sh", "-c", "~/rofi-wallpaper.sh", NULL };
+static const char *upvol[]      = { "/bin/sh", "-c", "~/volume.sh i", NULL };
+static const char *downvol[]    = { "/bin/sh", "-c", "~/volume.sh d", NULL };
+static const char *mutevol[]    = { "/bin/sh", "-c", "~/volume.sh t", NULL };
+static const char *upbright[]   = { "/bin/sh", "-c", "~/brightness.sh +10%", NULL };
+static const char *downbright[] = { "/bin/sh", "-c", "~/brightness.sh 10%-", NULL };
+```
+
+### Configure the Tags (Workspaces)
+
+Nyxwm comes preconfigured with 4 workspaces(tags). If you want more than 4, feel free to add it. 
+
+```c 
+static const char* tag1[] = { "0", NULL };
+static const char* tag2[] = { "1", NULL };
+static const char* tag3[] = { "2", NULL };
+static const char* tag4[] = { "3", NULL };
+
+```
+
+### Configure the keybindings 
+
+Remember? Previously we had the commands stored in arrays? We use those variables and map them to a keybinding. You can add as many as commands you can and as many as keybindings you can. 
+
+Keybindings are configured as an array of Key type. Where each key is a `struct` : 
+
+```c 
+typedef struct {
+    unsigned int mod;
+    KeySym keysym;
+    void (*func)(const char **arg);
+    const char **arg;
+} Key;
+
+```
+
+**You can add or edit your keybindings here**
+
+```c
+static Key keys[] = {
+    { MODKEY, XK_Return, fn_spawn, termcmd },
+    { MODKEY, XK_p,      fn_spawn, menucmd },
+    { MODKEY, XK_w,      fn_spawn, wallcmd },
+    { MODKEY, XK_c,      fn_kill,  NULL },
+    { MODKEY, XK_j,      fn_focus, NULL },
+    { MODKEY, XK_f,      fn_toggle_float, NULL },
+    { MODKEY, XK_q,      fn_quit,  NULL },
+    { MODKEY, XK_1,      fn_set_tag, tag1 },
+    { MODKEY, XK_2,      fn_set_tag, tag2 },
+    { MODKEY, XK_3,      fn_set_tag, tag3 },
+    { MODKEY, XK_4,      fn_set_tag, tag4 },
+    { 0, XF86XK_AudioRaiseVolume, fn_spawn, upvol },
+    { 0, XF86XK_AudioLowerVolume, fn_spawn, downvol },
+    { 0, XF86XK_AudioMute, fn_spawn, mutevol },
+    { 0, XF86XK_MonBrightnessUp, fn_spawn, upbright },
+    { 0, XF86XK_MonBrightnessDown, fn_spawn, downbright },
+    { MODKEY,               XK_g,      fn_toggle_canvas, NULL },
+    { MODKEY | ShiftMask,   XK_s,      fn_screenshot,    NULL },
+    { Mod1Mask,             XK_Tab,    fn_alt_tab,       NULL },
+    { MODKEY,               XK_l,      fn_next_layout,   NULL },
+};
+
+```
+
+
+> [!IMPORTANT]
+> You should not forget to recompile the WM after changes. If else, the binary will stay intact and no changes will be visible. 
 
 ```bash
 make build && makepkg -si
 ```
 
-## Launch
+### Launch
+
+To launch the nyxwm, you need to edit the `~/.xinitrc`. But before that, you need to have `xorg-xinit` package installed in your system. Without that, you would not be able to get `startx` command. 
+
+**Install the package**
+
+```bash
+sudo pacman -S xorg xorg-xinit 
+```
+
+
+**Edit the `~/.xinitrc` file to start nyxwm :**
 
 `~/.xinitrc`:
 
@@ -198,7 +314,7 @@ eval $(dbus-launch --sh-syntax)
 exec nyxwm
 ```
 
-Start:
+**Start nyxwm by running `startx` :**:
 
 ```bash
 startx
@@ -206,8 +322,6 @@ startx
 
 ## License
 
-MIT License.
-
-Do whatever you want with it.
-Break it if you can.
+This is a licensed project. You are required to follow the LICENSE.
+MIT License. Do whatever you want with it. Break it if you can.
 
