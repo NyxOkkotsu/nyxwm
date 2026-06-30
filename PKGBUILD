@@ -4,7 +4,9 @@ pkgrel=1
 pkgdesc="A minimal, high performance tiling window manager for X11, written in C."
 arch=('x86_64')
 license=('MIT')
-makedepends=('gcc' 'make' 'libx11' 'base-devel' 'pamixer' 'brightnessctl')
+makedepends=('gcc' 'make' 'libx11' 'base-devel')
+depends=('pamixer' 'brightnessctl' 'xorg' 'xorg-xinit')
+optdepends=('alacritty' 'kitty')
 source=()
 sha256sums=()
 
